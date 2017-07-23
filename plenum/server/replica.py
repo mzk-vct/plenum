@@ -1938,7 +1938,7 @@ class Replica(HasActionQueue, MessageProcessor):
     def get_acceptable_stashed_prepare_state(self, three_pc_key):
         prepares = {s: (m.digest, m.stateRootHash, m.txnRootHash) for m, s in
                     self.preparesWaitingForPrePrepare[three_pc_key]}
-        acceptable = mostCommonElement(prepares.values())
+        acceptable, _ = mostCommonElement(prepares.values())
         return (*acceptable, {s for s, state in prepares.items()
                               if state == acceptable})
 
@@ -2014,7 +2014,7 @@ class Replica(HasActionQueue, MessageProcessor):
         if len(self.preparesWaitingForPrePrepare[key]) > q:
             times = [pr.ppTime for (pr, _) in
                      self.preparesWaitingForPrePrepare[key]]
-            most_common_time = mostCommonElement(times)
+            most_common_time, _ = mostCommonElement(times)
             if self.quorums.timestamp.is_reached(times.count(most_common_time)):
                 logger.debug('{} found sufficient PREPAREs for the '
                              'PRE-PREPARE{}'.format(self, key))

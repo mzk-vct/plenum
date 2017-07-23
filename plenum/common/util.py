@@ -73,14 +73,14 @@ def randomSeed(size=32):
     return randomString(size)
 
 
-def mostCommonElement(elements: Iterable[T]) -> T:
+def mostCommonElement(elements: Iterable[T]) -> (T, int):
     """
     Find the most frequent element of a collection.
 
     :param elements: An iterable of elements
     :return: element of type T which is most frequent in the collection
     """
-    return count(elements)[0][0]
+    return count(elements)[0]
 
 
 def updateNamedTuple(tupleToUpdate: NamedTuple, **kwargs):

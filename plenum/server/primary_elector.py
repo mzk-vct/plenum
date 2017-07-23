@@ -353,7 +353,7 @@ class PrimaryElector(PrimaryDecider):
 
         if self.hasPrimaryQuorum(inst_id):
             if replica.isPrimary is None:
-                primary, seqNo = mostCommonElement(
+                (primary, seqNo), _ = mostCommonElement(
                     self.primaryDeclarations[inst_id].values())
                 logger.display("{} selected primary {} for instance {} "
                                "(view {})".format(replica, primary,
@@ -437,7 +437,7 @@ class PrimaryElector(PrimaryDecider):
                 # converting each tie(a list of node names) to a tuple.
                 ties = [tuple(t) for t in
                         self.reElectionProposals[instId].values()]
-                tieAmong = mostCommonElement(ties)
+                tieAmong, _ = mostCommonElement(ties)
 
                 self.setElectionDefaults(instId)
 
