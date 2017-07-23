@@ -33,6 +33,7 @@ from plenum.common.error import error
 from stp_core.crypto.util import isHexKey, isHex
 from stp_core.network.exceptions import \
     InvalidEndpointIpAddress, InvalidEndpointPort
+from plenum.common.func_utils import count
 
 # Do not remove the next import until imports in sovrin are fixed
 from stp_core.common.util import adict
@@ -79,7 +80,7 @@ def mostCommonElement(elements: Iterable[T]) -> T:
     :param elements: An iterable of elements
     :return: element of type T which is most frequent in the collection
     """
-    return Counter(elements).most_common(1)[0][0]
+    return count(elements)[0][0]
 
 
 def updateNamedTuple(tupleToUpdate: NamedTuple, **kwargs):
