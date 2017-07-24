@@ -864,9 +864,14 @@ class Node(HasActionQueue, Motor, Propagator, MessageProcessor, HasFileStorage,
     def send_current_state_to_lagging_node(self, nodeName: str):
         rid = self.nodestack.getRemote(nodeName).uid
         election_messages = self.elector.get_msgs_for_lagged_nodes()
-        message = CurrentState(viewNo=self.viewNo,
-                               primary=election_messages)
-
+        from plenum import switches
+        if switches.enable_current_state:
+            message = CurrentState(viewNo=self.viewNo,
+                                   primary=election_messages)
+        else:
+            if len(election_messages) == 0:
+                return
+            message = election_messages[0]
         logger.debug("{} sending current state {} to lagged node {}".
                      format(self, message, nodeName))
         self.send(message, rid)
@@ -2075,7 +2080,9 @@ class Node(HasActionQueue, Motor, Propagator, MessageProcessor, HasFileStorage,
         if self.all_instances_have_primary:
             # Doing this for CurrentState message
             # This problem is faced because viewNo is set on view change start
-            self.on_view_change_complete(self.elector.viewNo)
+            self.viewNo = self.elector.viewNo
+            if self.view_change_in_progress:
+                self.on_view_change_complete(self.elector.viewNo)
 
     @property
     def all_instances_have_primary(self):

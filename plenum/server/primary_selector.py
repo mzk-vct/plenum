@@ -28,7 +28,8 @@ class PrimarySelector(PrimaryDecider):
     def set_defaults(self):
         # Tracks view change done message
         self._view_change_done = {}  # replica name -> data
-        self._current_state_messages = {}  # replica name -> data
+
+        self._current_state_messages = {}  # view_no -> replica name -> view_change_done message
 
         # Set when an appropriate view change quorum is found which has
         # sufficient same ViewChangeDone messages
@@ -305,6 +306,22 @@ class PrimarySelector(PrimaryDecider):
                 self._hasViewChangeQuorum and self.has_view_change_from_primary
         return self._has_acceptable_view_change_quorum
 
+    def take_quorum(self, view_change_dones):
+        # (primary, ledger_infos) # TODO!
+        def to_tuple(info):
+            return tuple(tuple(i) for i in info)
+        votes = [(name, to_tuple(info)) for name, info in view_change_dones]
+        (primary_name, ledger_info), vote_count = mostCommonElement(votes)
+        if vote_count >= self.quorum:
+            logger.debug('{} found acceptable primary {} and ledger info {}'.
+                         format(self, primary_name, ledger_info))
+            self._accepted_view_change_done_message = (primary_name,
+                                                       ledger_info)
+        else:
+            logger.debug('{} does not have acceptable primary, only {} '
+                         'votes for {}'.format(self, vote_count,
+                                               (primary_name, ledger_info)))
+
     @property
     def has_sufficient_same_view_change_done_messages(self) -> Optional[Tuple]:
         # TODO: Why does it returns tuple, but has name starting with 'has_'?
@@ -329,12 +346,10 @@ class PrimarySelector(PrimaryDecider):
 
         return self._accepted_view_change_done_message
 
-    @property
-    def is_behind_for_view(self) -> bool:
+    def is_behind_for_view(self, accepted_ledger_summary) -> bool:
         # Checks if the node is currently behind the accepted state for this
         # view, only makes sense to call when the node has an acceptable
         # view change quorum
-        _, accepted_ledger_summary = self.has_sufficient_same_view_change_done_messages
         for (_, own_ledger_size, _), (_, accepted_ledger_size, _) in \
                 zip(self.ledger_summary, accepted_ledger_summary):
             if own_ledger_size < accepted_ledger_size:
@@ -393,6 +408,14 @@ class PrimarySelector(PrimaryDecider):
                         .format(self, self.node.mode))
             return
 
+        # TODO: Use correct values
+        message = list(self._current_state_messages[view_no].values())[0]
+        if self.is_behind_for_view(message.ledgerInfo):
+            logger.info('{} is synced and has an acceptable view change quorum '
+                        'but is behind the accepted state'.format(self))
+            self.node.start_catchup()
+            return
+
         logger.debug("{} starting selection of state".format(self))
         self.view_change_started(view_no)
         for instance_id, replica in enumerate(self.replicas):
@@ -415,7 +438,8 @@ class PrimarySelector(PrimaryDecider):
                         .format(self, self.node.mode))
             return
 
-        if self.is_behind_for_view:
+        _, accepted_ledger_summary = self.has_sufficient_same_view_change_done_messages
+        if self.is_behind_for_view(accepted_ledger_summary):
             logger.info('{} is synced and has an acceptable view change quorum '
                         'but is behind the accepted state'.format(self))
             self.node.start_catchup()

@@ -614,7 +614,11 @@ def checkRejectWithReason(client, reason: str, sender: str):
 
 
 def waitRejectWithReason(looper, client, reason: str, sender: str):
-    timeout = waits.expectedReqRejectQuorumTime()
+    from plenum import switches
+    if switches.enable_timeout_lowering:
+        timeout = 0.5 * waits.expectedReqRejectQuorumTime()
+    else:
+        timeout = waits.expectedReqRejectQuorumTime()
     return wait_negative_resp(looper, client, reason, sender, timeout,
                               checkRejectWithReason)
 
