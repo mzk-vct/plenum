@@ -6,15 +6,29 @@ import time
 import os.path
 
 _black_listed_types = [type(None), ModuleType, FunctionType, type, FrameType]
-_threshold = 50000  # bytes
+_default_threshold = 50000  # bytes
 
 
-def _get_objects():
-    # return globals().items()
-    return enumerate(gc.get_objects())  # index instead of name
+def get_objects_sizes(treshold=None, sort=True):
+    """
+    Returns sizes of all objects in memory.
+
+    :param treshold: min size
+    :param sort: sort results (in descending order)
+
+    top_items, items_size, total_size
 
 
-def size_of_all():
+    :return: Tuple of
+    1. (size of objects, its name or some index, type, object itself)
+    2. size of collected object
+    3. size of all object
+    """
+
+    if treshold is None:
+        treshold = _default_threshold
+    if treshold < 0:
+        treshold = 0
     all_objects = _get_objects()
     items = []
     tracked_objects = set()
@@ -29,21 +43,19 @@ def size_of_all():
             continue
         tracked_objects.add(obj_id)
         items.append((obj_size, name, obj_id, type(obj), obj))
-    top_items = [item for item in items if item[0] > _threshold]
-    items_size = sum(i[0] for i in top_items)
+    if treshold == 0:
+        top_items = items
+        items_size = total_size
+    else:
+        top_items = [item for item in items if item[0] > treshold]
+        items_size = sum(item[0] for item in top_items)
+    if sort:
+        top_items.sort(key=lambda x: x[0], reverse=True)
     return top_items, items_size, total_size
 
 
-def print_size_of_all_to_some_file(path_to_dir=os.path.curdir):
-    file_name = "{}.md".format(int(time.time() * 100))
-    file_path = os.path.join(path_to_dir, file_name)
-    with open(file_path, "w+") as f:
-        print_size_of_all(f)
-    return file_name
-
-
 def print_size_of_all(file=sys.stdout):
-    items, items_size, total_size = size_of_all()
+    items, items_size, total_size = get_objects_sizes()
     print("SIZES OF TOP {} OBJECTS ({} bytes, {}%)"
           .format(len(items),
                   items_size,
@@ -59,11 +71,24 @@ def print_size_of_all(file=sys.stdout):
         obj = item[-1]
         item = item[:-1]
         print("#", item, file=file)
-        referers = get_referrers(obj, known, level=2)
-        print_referrers(referers, "---|", file=file)
+        referers = _get_referrers(obj, known, level=2)
+        _print_referrers(referers, "---|", file=file)
 
 
-def get_referrers(obj, known: set, level=1):
+def print_size_of_all_to_some_file(path_to_dir=os.path.curdir):
+    file_name = "{}.md".format(int(time.time() * 100))
+    file_path = os.path.join(path_to_dir, file_name)
+    with open(file_path, "w+") as f:
+        print_size_of_all(f)
+    return file_name
+
+
+def _get_objects():
+    # return globals().items()
+    return enumerate(gc.get_objects())  # index instead of name
+
+
+def _get_referrers(obj, known: set, level=1):
     if level == 0:
         return []
     referers = []
@@ -72,12 +97,12 @@ def get_referrers(obj, known: set, level=1):
             continue
         known.add(id(ref))
         if type(ref) not in _black_listed_types:
-            ref_ref = get_referrers(ref, known, level-1)
+            ref_ref = _get_referrers(ref, known, level - 1)
             referers.append((ref, ref_ref))
     return referers
 
 
-def print_referrers(referrers, prefix="*", file=sys.stdout):
+def _print_referrers(referrers, prefix="*", file=sys.stdout):
     for item in referrers:
         (ref, ref_refs) = item
         ref_type = type(ref)
@@ -88,4 +113,4 @@ def print_referrers(referrers, prefix="*", file=sys.stdout):
             print(" ", prefix, ref_type, " => ", ref_str, file=file)
         except TypeError:
             print(" ", prefix, "TypeError on str of ", ref_type, file=file)
-        print_referrers(ref_refs, prefix=prefix*2, file=file)
+        _print_referrers(ref_refs, prefix=prefix * 2, file=file)
