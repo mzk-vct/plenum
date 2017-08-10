@@ -361,6 +361,8 @@ class Monitor(HasActionQueue, PluginLoaderHelper):
 
         :param instId: the id of the protocol instance
         """
+        if self.instances.count == 0:
+            return None, None
 
         masterThrp = self.getThroughput(masterInstId)
         totalReqs, totalTm = self.getInstanceMetrics(forAllExcept=masterInstId)
@@ -398,8 +400,7 @@ class Monitor(HasActionQueue, PluginLoaderHelper):
         if m:
             reqs, tm = zip(*m)
             return sum(reqs), sum(tm)
-        else:
-            return None, None
+        return 0, 0
 
     def getAvgLatencyForClient(self, identifier: str, *instId: int) -> float:
         """
