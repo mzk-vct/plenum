@@ -127,14 +127,15 @@ class Node(HasActionQueue, Motor, Propagator, MessageProcessor, HasFileStorage,
 
         self._view_change_timeout = self.config.VIEW_CHANGE_TIMEOUT
 
-        HasFileStorage.__init__(self, name, baseDir=self.basedirpath,
+        HasFileStorage.__init__(self,
+                                name=name,
+                                baseDir=self.basedirpath,
                                 dataDir=self.dataDir)
         self.ensureKeysAreSetup()
         self.opVerifiers = self.getPluginsByType(pluginPaths,
                                                  PLUGIN_TYPE_VERIFICATION)
         self.reqProcessors = self.getPluginsByType(pluginPaths,
                                                    PLUGIN_TYPE_PROCESSING)
-
         self.requestExecuter = defaultdict(lambda: self.executeDomainTxns)
 
         Motor.__init__(self)
@@ -148,7 +149,7 @@ class Node(HasActionQueue, Motor, Propagator, MessageProcessor, HasFileStorage,
 
         self.clientAuthNr = clientAuthNr or self.defaultAuthNr()
 
-        self.addGenesisNyms()
+        # self.addGenesisNyms()
 
         self.initPoolManager(nodeRegistry, ha, cliname, cliha)
 
