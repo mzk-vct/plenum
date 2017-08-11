@@ -25,7 +25,8 @@ class FakeLedger():
 
 
 # Question: Why doesn't this subclass Node.
-class FakeNode():
+# Answer: Because it is not needed
+class FakeNode:
     ledger_ids = [0]
 
     def __init__(self):

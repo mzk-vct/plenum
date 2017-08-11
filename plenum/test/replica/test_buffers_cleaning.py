@@ -1,18 +1,12 @@
 from plenum.server.replica import Replica
-
-
-class FakeNode():
-
-    def __init__(self, **kwargs):
-        for name, value in kwargs.items():
-            setattr(self, name, value)
+from plenum.test.helper import MockClass
 
 
 def test_ordered_cleaning():
 
     global_view_no = 2
 
-    node = FakeNode(
+    node = MockClass(
         name="fake node",
         ledger_ids=[0],
         viewNo=global_view_no,
@@ -38,7 +32,7 @@ def test_ordered_cleaning():
 
 def test_primary_names_cleaning():
 
-    node = FakeNode(
+    node = MockClass(
         name="fake node",
         ledger_ids=[0],
         viewNo=0,

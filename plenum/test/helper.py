@@ -914,3 +914,13 @@ def chk_all_funcs(looper, funcs, acceptable_fails=0, retry_wait=None,
         kwargs['override_timeout_limit'] = override_eventually_timeout
 
     looper.run(eventually(chk, **kwargs))
+
+
+class MockClass:
+    """
+    Mock class that pretends to be something
+    """
+
+    def __init__(self, **kwargs):
+        for name, value in kwargs.items():
+            setattr(self, name, value)
