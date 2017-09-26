@@ -130,7 +130,8 @@ class Batched(MessageProcessor):
             del self.outBoxes[rid]
 
     def _make_batch(self, msgs):
-        batch = Batch(msgs, None)
+        stringified_msgs = [msg.decode() for msg in msgs]
+        batch = Batch(stringified_msgs, None)
         serialized_batch = self.sign_and_serialize(batch)
         return serialized_batch
 

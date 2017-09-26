@@ -764,10 +764,7 @@ class ZStack(NetworkInterface):
     @staticmethod
     def serializeMsg(msg):
         if isinstance(msg, Mapping):
-            try:
-                msg = transport_level_serializer.serialize(msg)
-            except Exception as ex:
-                print(ex)
+            msg = transport_level_serializer.serialize(msg)
         if isinstance(msg, str):
             msg = msg.encode()
         assert isinstance(msg, bytes)
