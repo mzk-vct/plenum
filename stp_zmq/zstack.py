@@ -1,12 +1,8 @@
 import inspect
 
+from common.serializers.serialization import transport_level_serializer
 from stp_core.common.config.util import getConfig
 from stp_core.common.constants import CONNECTION_PREFIX, ZMQ_NETWORK_PROTOCOL
-
-try:
-    import ujson as json
-except ImportError:
-    import json
 
 import os
 import shutil
@@ -146,10 +142,8 @@ class ZStack(NetworkInterface):
         eDir = os.path.join(baseDir, '__eDir')
         os.makedirs(sDir, exist_ok=True)
         os.makedirs(eDir, exist_ok=True)
-        (public_key, secret_key), (verif_key, sig_key) = createEncAndSigKeys(eDir,
-                                                                             sDir,
-                                                                             name,
-                                                                             seed=sigseed)
+        (public_key, secret_key), (verif_key, sig_key) = \
+            createEncAndSigKeys(eDir, sDir, name, seed=sigseed)
 
         homeDir = ZStack.homeDirPath(baseDir, name)
         verifDirPath = ZStack.verifDirPath(homeDir)
@@ -766,12 +760,11 @@ class ZStack(NetworkInterface):
                 .format(CONNECTION_PREFIX, self, e, ident)
             logger.error(err_str)
             return False, err_str
-        return True, None
 
     @staticmethod
     def serializeMsg(msg):
         if isinstance(msg, Mapping):
-            msg = json.dumps(msg)
+            msg = transport_level_serializer.serialize(msg)
         if isinstance(msg, str):
             msg = msg.encode()
         assert isinstance(msg, bytes)
@@ -781,7 +774,7 @@ class ZStack(NetworkInterface):
     def deserializeMsg(msg):
         if isinstance(msg, bytes):
             msg = msg.decode()
-        msg = json.loads(msg)
+        msg = transport_level_serializer.deserialize(msg)
         return msg
 
     def signedMsg(self, msg: bytes, signer: Signer=None):
