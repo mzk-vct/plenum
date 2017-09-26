@@ -14,6 +14,8 @@ client_req_rep_store_serializer = JsonSerializer()
 multi_sig_store_serializer = JsonSerializer()
 state_roots_serializer = Base58Serializer()
 
+transport_level_serializer = JsonSerializer()
+
 
 def serialize_msg_for_signing(msg: Mapping, topLevelKeysToIgnore=None):
     """
