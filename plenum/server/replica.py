@@ -19,6 +19,7 @@ from plenum.common.request import ReqDigest, Request, ReqKey
 from plenum.common.types import f
 from plenum.common.util import updateNamedTuple, compare_3PC_keys, max_3PC_key, \
     mostCommonElement, SortedDict
+from plenum.server.bft.preprepares import PrePrepares
 from plenum.server.has_action_queue import HasActionQueue
 from plenum.server.models import Commits, Prepares
 from plenum.server.router import Router
@@ -174,8 +175,7 @@ class Replica(HasActionQueue, MessageProcessor):
         # Dictionary of received PRE-PREPAREs. Key of dictionary is a 2
         # element tuple with elements viewNo, pre-prepare seqNo and value
         # is the received PRE-PREPARE
-        self.prePrepares = SortedDict(lambda k: (k[0], k[1]))
-        # type: Dict[Tuple[int, int], PrePrepare]
+        self.prePrepares = PrePrepares()
 
         # Dictionary of received Prepare requests. Key of dictionary is a 2
         # element tuple with elements viewNo, seqNo and value is a 2 element
@@ -843,6 +843,14 @@ class Replica(HasActionQueue, MessageProcessor):
                                                     for i, r in pp.reqIdr]})
         oldStateRoot = self.stateRootHash(pp.ledgerId, to_str=False)
         try:
+
+
+            can, reason = self.canProcessPrePrepare(pp, sender)
+            if not can:
+                pass
+
+
+
             if self.canProcessPrePrepare(pp, sender):
                 self.addToPrePrepares(pp)
                 if not self.node.isParticipating:
@@ -1171,7 +1179,7 @@ class Replica(HasActionQueue, MessageProcessor):
         :param pp: the PRE-PREPARE to add to the list
         """
         key = (pp.viewNo, pp.ppSeqNo)
-        self.prePrepares[key] = pp
+        self.prePrepares.register(pp)
         self.lastPrePrepareSeqNo = pp.ppSeqNo
         self.last_accepted_pre_prepare_time = pp.ppTime
         self.dequeue_prepares(*key)
@@ -1273,9 +1281,7 @@ class Replica(HasActionQueue, MessageProcessor):
         key = (viewNo, ppSeqNo)
         if key in self.sentPrePrepares:
             return self.sentPrePrepares[key]
-        if key in self.prePrepares:
-            return self.prePrepares[key]
-        return None
+        return self.prePrepares.get(viewNo, ppSeqNo)
 
     def get_prepare(self, viewNo, ppSeqNo):
         key = (viewNo, ppSeqNo)
@@ -1291,9 +1297,10 @@ class Replica(HasActionQueue, MessageProcessor):
             (v, s), pp = self.sentPrePrepares.peekitem(-1)
             last_3pc = (v, s)
             lastPp = pp
-        if self.prePrepares:
-            (v, s), pp = self.prePrepares.peekitem(-1)
-            if compare_3PC_keys(last_3pc, (v, s)) > 0:
+        latest_pre_prepare = self.prePrepares.latest_received
+        if latest_pre_prepare:
+            key, pp = latest_pre_prepare
+            if compare_3PC_keys(last_3pc, key) > 0:
                 lastPp = pp
         return lastPp
 
@@ -1419,7 +1426,7 @@ class Replica(HasActionQueue, MessageProcessor):
         # if some PREPAREs/COMMITs were completely missed in the same view
         toCheck = set()
         toCheck.update(set(self.sentPrePrepares.keys()))
-        toCheck.update(set(self.prePrepares.keys()))
+        toCheck.update(self.prePrepares.all_registered_keys)
         toCheck.update(set(self.prepares.keys()))
         toCheck.update(set(self.commits.keys()))
         for (v, p) in toCheck:
@@ -1758,11 +1765,12 @@ class Replica(HasActionQueue, MessageProcessor):
                 tpcKeys.add(key3PC)
                 for reqKey in pp.reqIdr:
                     reqKeys.add(reqKey)
-        for key3PC, pp in self.prePrepares.items():
-            if compare_3PC_keys(till3PCKey, key3PC) <= 0:
-                tpcKeys.add(key3PC)
-                for reqKey in pp.reqIdr:
-                    reqKeys.add(reqKey)
+
+        removed_pre_prepares = self.prePrepares.unregister_all(*till3PCKey)
+        for key, pre_prepare in removed_pre_prepares:
+            tpcKeys.add(key)
+            for reqKey in pre_prepare.reqIdr:
+                reqKeys.add(reqKey)
 
         logger.debug("{} found {} 3-phase keys to clean".
                      format(self, len(tpcKeys)))
@@ -1771,7 +1779,6 @@ class Replica(HasActionQueue, MessageProcessor):
 
         to_clean_up = (
             self.sentPrePrepares,
-            self.prePrepares,
             self.prepares,
             self.commits,
             self.batches,
@@ -2287,10 +2294,10 @@ class Replica(HasActionQueue, MessageProcessor):
         Remove any 3 phase messages till the last ordered key and also remove
         any corresponding request keys
         """
-        outdated_pre_prepares = {}
-        for key, pp in self.prePrepares.items():
-            if compare_3PC_keys(key, last_caught_up_3PC) >= 0:
-                outdated_pre_prepares[key] = pp
+
+        outdated_pre_prepares = \
+            dict(self.prePrepares.unregister_all(*last_caught_up_3PC))
+
         for key, pp in self.sentPrePrepares.items():
             if compare_3PC_keys(key, last_caught_up_3PC) >= 0:
                 outdated_pre_prepares[key] = pp
@@ -2301,7 +2308,6 @@ class Replica(HasActionQueue, MessageProcessor):
         for key, pp in outdated_pre_prepares.items():
             self.batches.pop(key, None)
             self.sentPrePrepares.pop(key, None)
-            self.prePrepares.pop(key, None)
             self.prepares.pop(key, None)
             self.commits.pop(key, None)
             self._discard_ordered_req_keys(pp)
