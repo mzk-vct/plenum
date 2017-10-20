@@ -169,8 +169,7 @@ class Replica(HasActionQueue, MessageProcessor):
         # which it has broadcasted to all other non primary replicas
         # Key of dictionary is a 2 element tuple with elements viewNo,
         # pre-prepare seqNo and value is the received PRE-PREPARE
-        self.sent_pre_prepares = SortedDict(lambda k: (k[0], k[1]))
-        # type: Dict[Tuple[int, int], PrePrepare]
+        self.sent_pre_prepares = PrePrepares()
 
         # Dictionary of received PRE-PREPAREs. Key of dictionary is a 2
         # element tuple with elements viewNo, pre-prepare seqNo and value
@@ -725,7 +724,7 @@ class Replica(HasActionQueue, MessageProcessor):
         return pre_prepare
 
     def sendPrePrepare(self, ppReq: PrePrepare):
-        self.sent_pre_prepares[ppReq.viewNo, ppReq.ppSeqNo] = ppReq
+        self.sent_pre_prepares.register(ppReq)
         self.send(ppReq, TPCStat.PrePrepareSent)
 
     def readyFor3PC(self, key: ReqKey):
@@ -1278,10 +1277,8 @@ class Replica(HasActionQueue, MessageProcessor):
         self.tryCommit(prepare)
 
     def getPrePrepare(self, viewNo, ppSeqNo):
-        key = (viewNo, ppSeqNo)
-        if key in self.sent_pre_prepares:
-            return self.sent_pre_prepares[key]
-        return self.received_pre_prepares.get(viewNo, ppSeqNo)
+        return self.sent_pre_prepares.get(viewNo, ppSeqNo) or \
+               self.received_pre_prepares.get(viewNo, ppSeqNo)
 
     def get_prepare(self, viewNo, ppSeqNo):
         key = (viewNo, ppSeqNo)
@@ -1292,17 +1289,16 @@ class Replica(HasActionQueue, MessageProcessor):
     @property
     def lastPrePrepare(self):
         last_3pc = (0, 0)
-        lastPp = None
-        if self.sent_pre_prepares:
-            (v, s), pp = self.sent_pre_prepares.peekitem(-1)
-            last_3pc = (v, s)
-            lastPp = pp
-        latest_pre_prepare = self.received_pre_prepares.latest_received
-        if latest_pre_prepare:
-            key, pp = latest_pre_prepare
+        last_pp = None
+        latest_sent = self.sent_pre_prepares.latest_received
+        if latest_sent:
+            last_3pc, last_pp = latest_sent
+        latest_received = self.received_pre_prepares.latest_received
+        if latest_received:
+            key, pp = latest_received
             if compare_3PC_keys(last_3pc, key) > 0:
-                lastPp = pp
-        return lastPp
+                last_pp = pp
+        return last_pp
 
     def hasCommitted(self, request) -> bool:
         return self.commits.hasCommitFrom(ThreePhaseKey(
@@ -1347,8 +1343,10 @@ class Replica(HasActionQueue, MessageProcessor):
 
         # TODO: Fix problem that can occur with a primary and non-primary(s)
         # colluding and the honest nodes being slow
-        if ((key not in self.prepares and key not in self.sent_pre_prepares) and
-                (key not in self.preparesWaitingForPrePrepare)):
+        if (key not in self.prepares and
+            key not in self.sent_pre_prepares and
+            key not in self.preparesWaitingForPrePrepare):
+
             logger.warning("{} rejecting COMMIT{} due to lack of prepares".
                            format(self, key))
             # raise SuspiciousNode(sender, Suspicions.UNKNOWN_CM_SENT, commit)
@@ -1425,7 +1423,7 @@ class Replica(HasActionQueue, MessageProcessor):
 
         # if some PREPAREs/COMMITs were completely missed in the same view
         toCheck = set()
-        toCheck.update(set(self.sent_pre_prepares.keys()))
+        toCheck.update(self.sent_pre_prepares.all_registered_keys)
         toCheck.update(self.received_pre_prepares.all_registered_keys)
         toCheck.update(set(self.prepares.keys()))
         toCheck.update(set(self.commits.keys()))
@@ -1760,17 +1758,11 @@ class Replica(HasActionQueue, MessageProcessor):
         logger.debug("{} cleaning up till {}".format(self, till3PCKey))
         tpcKeys = set()
         reqKeys = set()
-        for key3PC, pp in self.sent_pre_prepares.items():
-            if compare_3PC_keys(till3PCKey, key3PC) <= 0:
-                tpcKeys.add(key3PC)
-                for reqKey in pp.reqIdr:
+        for box in self.sent_pre_prepares, self.received_pre_prepares:
+            for key, pre_prepare in box:
+                tpcKeys.add(key)
+                for reqKey in pre_prepare.reqIdr:
                     reqKeys.add(reqKey)
-
-        removed_pre_prepares = self.received_pre_prepares.unregister_all(*till3PCKey)
-        for key, pre_prepare in removed_pre_prepares:
-            tpcKeys.add(key)
-            for reqKey in pre_prepare.reqIdr:
-                reqKeys.add(reqKey)
 
         logger.debug("{} found {} 3-phase keys to clean".
                      format(self, len(tpcKeys)))
@@ -1778,7 +1770,6 @@ class Replica(HasActionQueue, MessageProcessor):
                      format(self, len(reqKeys)))
 
         to_clean_up = (
-            self.sent_pre_prepares,
             self.prepares,
             self.commits,
             self.batches,
@@ -2295,19 +2286,15 @@ class Replica(HasActionQueue, MessageProcessor):
         any corresponding request keys
         """
 
-        outdated_pre_prepares = \
-            dict(self.received_pre_prepares.unregister_all(*last_caught_up_3PC))
-
-        for key, pp in self.sent_pre_prepares.items():
-            if compare_3PC_keys(key, last_caught_up_3PC) >= 0:
-                outdated_pre_prepares[key] = pp
+        outdated = {}
+        for box in self.received_pre_prepares, self.sent_pre_prepares:
+            outdated.update(box.unregister_all(*last_caught_up_3PC))
 
         logger.debug('{} going to remove messages for {} 3PC keys'.
-                     format(self, len(outdated_pre_prepares)))
+                     format(self, len(outdated)))
 
-        for key, pp in outdated_pre_prepares.items():
+        for key, pp in outdated.items():
             self.batches.pop(key, None)
-            self.sent_pre_prepares.pop(key, None)
             self.prepares.pop(key, None)
             self.commits.pop(key, None)
             self._discard_ordered_req_keys(pp)
