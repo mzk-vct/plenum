@@ -25,8 +25,8 @@ def testPrimarySendsAPrepareAndMarkedSuspicious(looper, nodeSet, delay_commits,
                                                 preprepared1):
     def sendPrepareFromPrimary(instId):
         primary = getPrimaryReplica(nodeSet, instId)
-        viewNo, ppSeqNo = next(iter(primary.sentPrePrepares.keys()))
-        ppReq = primary.sentPrePrepares[viewNo, ppSeqNo]
+        viewNo, ppSeqNo = next(iter(primary.sent_pre_prepares.keys()))
+        ppReq = primary.sent_pre_prepares[viewNo, ppSeqNo]
         prepare = Prepare(instId,
                           viewNo,
                           ppSeqNo,

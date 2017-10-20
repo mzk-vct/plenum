@@ -49,8 +49,8 @@ def testReplicasRejectSamePrePrepareMsg(looper, nodeSet, client1, wallet1):
                               request1.reqId,
                               primaryRepl.viewNo,
                               retryWait=1))
-    prePrepareReq = primaryRepl.sentPrePrepares[primaryRepl.viewNo,
-                                                primaryRepl.lastPrePrepareSeqNo]
+    prePrepareReq = primaryRepl.sent_pre_prepares[primaryRepl.viewNo,
+                                                  primaryRepl.lastPrePrepareSeqNo]
     looper.run(eventually(checkPrePrepareReqRecvd,
                           nonPrimaryReplicas,
                           prePrepareReq,
