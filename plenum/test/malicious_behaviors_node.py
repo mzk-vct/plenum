@@ -64,7 +64,8 @@ def sendDuplicate3PhaseMsg(
     def evilSendPrePrepareRequest(self, ppReq: PrePrepare):
         logger.debug("EVIL: Sending duplicate pre-prepare message: {}".
                      format(ppReq))
-        self.sentPrePrepares[self.viewNo, self.lastPrePrepareSeqNo] = ppReq
+        self.sent_pre_prepares._pre_prepares[self.viewNo,
+                                             self.lastPrePrepareSeqNo] = ppReq
         sendDup(self, ppReq, TPCStat.PrePrepareSent, count)
 
     def evilSendPrepare(self, ppReq: PrePrepare):
@@ -136,7 +137,9 @@ def send3PhaseMsgWithIncorrectDigest(node: TestNode, msgType: ThreePhaseMsg,
         logger.debug("EVIL: Creating pre-prepare message for request : {}".
                      format(ppReq))
         ppReq = updateNamedTuple(ppReq, digest=ppReq.digest + 'random')
-        self.sentPrePrepares[self.viewNo, self.lastPrePrepareSeqNo] = ppReq
+
+        self.sent_pre_prepares._pre_prepares[self.viewNo,
+                                             self.lastPrePrepareSeqNo] = ppReq
         self.send(ppReq, TPCStat.PrePrepareSent)
 
     def evilSendPrepare(self, ppReq):

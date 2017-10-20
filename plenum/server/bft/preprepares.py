@@ -4,8 +4,6 @@ from plenum.common.util import SortedDict, compare_3PC_keys
 from plenum.common.types import f
 
 
-# SortedDict(lambda k: (k[0], k[1]))
-# type: Dict[Tuple[int, int], PrePrepare]
 # TODO: make interface for it
 class PrePrepares:
 
@@ -14,7 +12,7 @@ class PrePrepares:
         INVALID_PP_TIME = 1
 
     def __init__(self):
-        by_view_no_and_then_by_seq_no = self._make_pre_prepare_key
+        def by_view_no_and_then_by_seq_no(key): return key
         self._pre_prepares = SortedDict(by_view_no_and_then_by_seq_no)
 
     def register(self, pre_prepare: PrePrepare):
@@ -47,7 +45,7 @@ class PrePrepares:
     @property
     def latest_received(self):
         """
-        Returns registerd PrePrepare and it's key with
+        Returns registered PrePrepare and it's key with
         highest view_no and seq_no
         """
         if len(self._pre_prepares) > 0:
@@ -63,10 +61,17 @@ class PrePrepares:
     def can_process_preprepare(self, pre_prepare):
         pass
 
+    def pend_due_to_missing_request(self):
+        pass
+
+    def pend_due_to_missing_previous(self):
+        # prePreparesPendingFinReqs
+        pass
+
     @staticmethod
     def _make_pre_prepare_key(pre_prepare):
-        seq_no = getattr(pre_prepare, f.PP_SEQ_NO)
-        view_no = getattr(pre_prepare, f.VIEW_NO)
+        seq_no = getattr(pre_prepare, f.PP_SEQ_NO.nm)
+        view_no = getattr(pre_prepare, f.VIEW_NO.nm)
         return view_no, seq_no
 
     def __contains__(self, item):
@@ -80,3 +85,6 @@ class PrePrepares:
             raise ValueError("There is no PrePrepare ({}:{})".format(*item))
         return res
 
+    def __iter__(self):
+        for item in self._pre_prepares.items():
+            yield item

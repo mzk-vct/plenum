@@ -844,9 +844,9 @@ class Replica(HasActionQueue, MessageProcessor):
         try:
 
 
-            can, reason = self.canProcessPrePrepare(pp, sender)
-            if not can:
-                pass
+            # can, reason = self.canProcessPrePrepare(pp, sender)
+            # if not can:
+            #     pass
 
 
 
@@ -1759,7 +1759,7 @@ class Replica(HasActionQueue, MessageProcessor):
         tpcKeys = set()
         reqKeys = set()
         for box in self.sent_pre_prepares, self.received_pre_prepares:
-            for key, pre_prepare in box:
+            for key, pre_prepare in box.unregister_all(*till3PCKey):
                 tpcKeys.add(key)
                 for reqKey in pre_prepare.reqIdr:
                     reqKeys.add(reqKey)
